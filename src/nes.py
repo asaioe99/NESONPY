@@ -55,8 +55,28 @@ class CPU():
             2,2,1,1,1,2,2,1,1,3,1,1,1,3,3,1, # 0xF0
         ]
 
+        self.clk_table = [
+           #0 1 2 3 4 5 6 7 8 9 A B C D E F
+            7,6,2,8,3,3,5,5,3,2,2,2,4,4,6,6, # 0x00
+            2,5,2,8,4,4,6,6,2,4,2,7,4,4,6,7, # 0x10
+            6,6,2,8,3,3,5,5,4,2,2,2,4,4,6,6, # 0x20
+            2,5,2,8,4,4,6,6,2,4,2,7,4,4,6,7, # 0x30
+            6,6,2,8,3,3,5,5,3,2,2,2,3,4,6,6, # 0x40
+            2,5,2,8,4,4,6,6,2,4,2,7,4,4,6,7, # 0x50
+            6,6,2,8,3,3,5,5,4,2,2,2,5,4,6,6, # 0x60
+            2,5,2,8,4,4,6,6,2,4,2,7,4,4,6,7, # 0x70
+            2,6,2,6,3,3,3,3,2,2,2,2,4,4,4,4, # 0x80
+            2,6,2,6,4,4,4,4,2,4,2,5,5,4,5,5, # 0x90
+            2,6,2,6,3,3,3,3,2,2,2,2,4,4,4,4, # 0xA0
+            2,5,2,5,4,4,4,4,2,4,2,4,4,4,4,4, # 0xB0
+            2,6,2,8,3,3,5,5,2,2,2,2,4,4,6,6, # 0xC0
+            2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7, # 0xD0
+            2,6,3,8,3,3,5,5,2,2,2,2,4,4,6,6, # 0xE0
+            2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7, # 0xF0
+        ]
+
     # nestest方式のlog出力
-    def debug(self, mb):
+    def debug(self, mb, ppu):
         p = 0x00
         bitmask = 0x80
         for i in self.P.values():
@@ -65,16 +85,16 @@ class CPU():
             bitmask >>= 1
 
         print(str(format(self.PC, '04X')) + "  ", end="")
-        print(str(format(mb.mmu_read(self.PC), '02X')), end = "")
-        len = self.op_len[mb.mmu_read(self.PC)]
+        print(str(format(mb.mmu_read(self.PC, ppu), '02X')), end = "")
+        len = self.op_len[mb.mmu_read(self.PC, ppu)]
         if len == 1:
             print("        ", end = "")
         elif len == 2:
-            print(str(" " + format(mb.mmu_read(self.PC + 1), '02X')), end = "")
+            print(str(" " + format(mb.mmu_read(self.PC + 1, ppu), '02X')), end = "")
             print("     ", end = "")
         elif len == 3:
-            print(str(" " + format(mb.mmu_read(self.PC + 1), '02X')), end = "")
-            print(str(" " + format(mb.mmu_read(self.PC + 2), '02X')), end = "")
+            print(str(" " + format(mb.mmu_read(self.PC + 1, ppu), '02X')), end = "")
+            print(str(" " + format(mb.mmu_read(self.PC + 2, ppu), '02X')), end = "")
             print("  ", end = "")
 
         print("                                  A:" + str(format(self.A , '02X')), end = "")
@@ -86,8 +106,8 @@ class CPU():
         print(str(format(self.cycles , '3d')))
 
 
-    def reset(self, mb):
-        self.PC = mb.mmu_read(0xFFFC) | mb.mmu_read(0xFFFD) << 8
+    def reset(self, mb, ppu):
+        self.PC = mb.mmu_read(0xFFFC, ppu) | mb.mmu_read(0xFFFD, ppu) << 8
         self.PC = 0xC000
 
     def add_8(self, a, b):
@@ -100,48 +120,48 @@ class CPU():
         mb.mmu_write(self.SP | 0x100, data, ppu)
         self.SP -= 1
 
-    def fetch(self, mb):
-        return mb.mmu_read(self.PC)
+    def fetch(self, mb, ppu):
+        return mb.mmu_read(self.PC, ppu)
 
     def execute(self, opcode, mb, ppu):
         if opcode == 0xA9:
-            op.lda_sim8(self, mb)
+            op.lda_sim8(self, mb, ppu)
         if opcode == 0xA5:
-            op.lda_im8(self, mb)
+            op.lda_im8(self, mb, ppu)
         if opcode == 0xB5:
-            op.lda_im8x(self, mb)
+            op.lda_im8x(self, mb, ppu)
         if opcode == 0xAD:
-            op.lda_im16(self, mb)
+            op.lda_im16(self, mb, ppu)
         if opcode == 0xBD:
-            op.lda_im16x(self, mb)
+            op.lda_im16x(self, mb, ppu)
         if opcode == 0xB9:
-            op.lda_im16y(self, mb)
+            op.lda_im16y(self, mb, ppu)
         if opcode == 0xA1:
-            op.lda_iim8x(self, mb)
+            op.lda_iim8x(self, mb, ppu)
         if opcode == 0xB1:
-            op.lda_iim8y(self, mb)
+            op.lda_iim8y(self, mb, ppu)
         # LDX命令
         if opcode == 0xA2:
-            op.ldx_sim8(self, mb)
+            op.ldx_sim8(self, mb, ppu)
         if opcode == 0xA6:
-            op.ldx_im8(self, mb)
+            op.ldx_im8(self, mb, ppu)
         if opcode == 0xB6:
-            op.ldx_im8y(self, mb)
+            op.ldx_im8y(self, mb, ppu)
         if opcode == 0xAE:
-            op.ldx_im16(self, mb)
+            op.ldx_im16(self, mb, ppu)
         if opcode == 0xBE:
-            op.ldx_im16y(self, mb)
+            op.ldx_im16y(self, mb, ppu)
         # LDY命令
         if opcode == 0xA0:
-            op.ldy_sim8(self, mb)
+            op.ldy_sim8(self, mb, ppu)
         if opcode == 0xA4:
-            op.ldy_im8(self, mb)
+            op.ldy_im8(self, mb, ppu)
         if opcode == 0xB4:
-            op.ldy_im8x(self, mb)
+            op.ldy_im8x(self, mb, ppu)
         if opcode == 0xAC:
-            op.ldy_im16(self, mb)
+            op.ldy_im16(self, mb, ppu)
         if opcode == 0xBC:
-            op.ldy_im16x(self, mb)
+            op.ldy_im16x(self, mb, ppu)
         # STA命令
         if opcode == 0x85:
             op.sta_im8(self, mb, ppu) 
@@ -192,94 +212,94 @@ class CPU():
         # 算術命令
         # ADC命令
         if opcode == 0x69:
-            op.adc_sim8(self, mb)
+            op.adc_sim8(self, mb, ppu)
         if opcode == 0x65:
-            op.adc_im8(cpu, mb)
+            op.adc_im8(self, mb, ppu)
         if opcode == 0x75:
-            op.adc_im8x(self, mb)
+            op.adc_im8x(self, mb, ppu)
         if opcode == 0x6D:
-            op.adc_im16(self, mb)
+            op.adc_im16(self, mb, ppu)
         if opcode == 0x7D:
-            op.adc_im16x(self, mb)
+            op.adc_im16x(self, mb, ppu)
         if opcode == 0x79:
-            op.adc_im16y(self, mb)
+            op.adc_im16y(self, mb, ppu)
         if opcode == 0x61:
-            op.adc_iim8x(self, mb)
+            op.adc_iim8x(self, mb, ppu)
         if opcode == 0x71:
-            op.adc_iim8y(self, mb)
+            op.adc_iim8y(self, mb, ppu)
         # AND命令
         if opcode == 0x29:
-            op.and_sim8(self, mb)
+            op.and_sim8(self, mb, ppu)
         if opcode == 0x25:
-            op.and_im8(self, mb)
+            op.and_im8(self, mb, ppu)
         if opcode == 0x35:
-            op.and_im8x(self, mb)
+            op.and_im8x(self, mb, ppu)
         if opcode == 0x2D:
-            op.and_im16(self, mb)
+            op.and_im16(self, mb, ppu)
         if opcode == 0x3D:
-            op.and_im16x(self, mb)
+            op.and_im16x(self, mb, ppu)
         if opcode == 0x39:
-            op.and_im16y(self, mb)
+            op.and_im16y(self, mb, ppu)
         if opcode == 0x21:
-            op.and_iim8x(self, mb)
+            op.and_iim8x(self, mb, ppu)
         if opcode == 0x31:
-            op.and_iim8y(self, mb)
+            op.and_iim8y(self, mb, ppu)
         # ASL命令
         if opcode == 0x0A:
             op.asl_acc(self, mb)
         if opcode == 0x06:
-            op.asl_im8(self, mb)
+            op.asl_im8(self, mb, ppu)
         if opcode == 0x16:
-            op.asl_im8x(self, mb)
+            op.asl_im8x(self, mb, ppu)
         if opcode == 0x0E:
-            op.asl_im16(self, mb)
+            op.asl_im16(self, mb, ppu)
         if opcode == 0x1E:
-            op.asl_im16x(self, mb)
+            op.asl_im16x(self, mb, ppu)
         # BIT命令
         if opcode == 0x24:
-            op.bit_im8(self, mb)
+            op.bit_im8(self, mb, ppu)
         if opcode == 0x2C:
-            op.bit_im16(self, mb)           
+            op.bit_im16(self, mb, ppu)           
         # CMP命令
         if opcode == 0xC9:
-            op.cmp_sim8(self, mb)
+            op.cmp_sim8(self, mb, ppu)
         if opcode == 0xC5:
-            op.cmp_im8(self, mb)
+            op.cmp_im8(self, mb, ppu)
         if opcode == 0xD5:
-            op.cmp_im8x(self, mb)
+            op.cmp_im8x(self, mb, ppu)
         if opcode == 0xCD:
-            op.cmp_im16(self, mb)
+            op.cmp_im16(self, mb, ppu)
         if opcode == 0xDD:
-            op.cmp_im16x(self, mb)
+            op.cmp_im16x(self, mb, ppu)
         if opcode == 0xD9:
-            op.cmp_im16y(self, mb)
+            op.cmp_im16y(self, mb, ppu)
         if opcode == 0xC1:
-            op.cmp_iim8x(self, mb)
+            op.cmp_iim8x(self, mb, ppu)
         if opcode == 0xD1:
-            op.cmp_iim8y(self, mb)
+            op.cmp_iim8y(self, mb, ppu)
         # CPX命令
         if opcode == 0xE0:
-            op.cpx_sim8(self, mb)
+            op.cpx_sim8(self, mb, ppu)
         if opcode == 0xE4:
-            op.cpx_im8(self, mb)
+            op.cpx_im8(self, mb, ppu)
         if opcode == 0xEC:
-            op.cpx_im16(self, mb)
+            op.cpx_im16(self, mb, ppu)
         # CPY命令
         if opcode == 0xC0:
-            op.cpy_sim8(self, mb)
+            op.cpy_sim8(self, mb, ppu)
         if opcode == 0xC4:
-            op.cpy_im8(self, mb)
+            op.cpy_im8(self, mb, ppu)
         if opcode == 0xCC:
-            op.cpy_im16(self, mb)
+            op.cpy_im16(self, mb, ppu)
         # DEC命令
         if opcode == 0xC6:
-            op.dec_im8(self, mb)
+            op.dec_im8(self, mb, ppu)
         if opcode == 0xD6:
-            op.dec_im8x(self, mb)
+            op.dec_im8x(self, mb, ppu)
         if opcode == 0xCE:
-            op.dec_im16(self, mb)
+            op.dec_im16(self, mb, ppu)
         if opcode == 0xDE:
-            op.dec_im16x(self, mb)
+            op.dec_im16x(self, mb, ppu)
         # DEX命令
         if opcode == 0xCA:
             op.dex(self, mb) 
@@ -288,21 +308,21 @@ class CPU():
             op.dey(self, mb) 
         # EOR命令
         if opcode == 0x49:
-            op.eor_sim8(self, mb)
+            op.eor_sim8(self, mb, ppu)
         if opcode == 0x45:
-            op.eor_im8(self, mb)
+            op.eor_im8(self, mb, ppu)
         if opcode == 0x55:
-            op.eor_im8(self, mb)
+            op.eor_im8x(self, mb, ppu)
         if opcode == 0x4D:
-            op.eor_im16(self, mb)
+            op.eor_im16(self, mb, ppu)
         if opcode == 0x5D:
-            op.eor_im16x(self, mb)
+            op.eor_im16x(self, mb, ppu)
         if opcode == 0x59:
-            op.eor_im16y(self, mb)
+            op.eor_im16y(self, mb, ppu)
         if opcode == 0x41:
-            op.eor_iim16x(self, mb)
+            op.eor_iim8x(self, mb, ppu)
         if opcode == 0x51:
-            op.eor_iim16y(self, mb)
+            op.eor_iim8y(self, mb, ppu)
         # INC命令
         if opcode == 0xE6:
             op.inc_im8(self, mb, ppu)
@@ -322,30 +342,30 @@ class CPU():
         if opcode == 0x4A:
             op.lsr_acc(self, mb)
         if opcode == 0x46:
-            op.lsr_im8(self, mb)
+            op.lsr_im8(self, mb, ppu)
         if opcode == 0x56:
-            op.lsr_im8x(self, mb)
+            op.lsr_im8x(self, mb, ppu)
         if opcode == 0x4E:
-            op.lsr_im16(self, mb)
+            op.lsr_im16(self, mb, ppu)
         if opcode == 0x5E:
-            op.lsr_im16x(self, mb)
+            op.lsr_im16x(self, mb, ppu)
         # ORA命令
         if opcode == 0x09:
-            op.ora_sim8(self, mb)
+            op.ora_sim8(self, mb, ppu)
         if opcode == 0x05:
-            op.ora_im8(self, mb)
+            op.ora_im8(self, mb, ppu)
         if opcode == 0x15:
-            op.ora_im8(self, mb)
+            op.ora_im8x(self, mb, ppu)
         if opcode == 0x0D:
-            op.ora_im16(self, mb)
+            op.ora_im16(self, mb, ppu)
         if opcode == 0x1D:
-            op.ora_im16x(self, mb)
+            op.ora_im16x(self, mb, ppu)
         if opcode == 0x19:
-            op.ora_im16y(self, mb)
+            op.ora_im16y(self, mb, ppu)
         if opcode == 0x01:
-            op.ora_iim16x(self, mb)
+            op.ora_iim8x(self, mb, ppu)
         if opcode == 0x11:
-            op.ora_iim16y(self, mb)
+            op.ora_iim8y(self, mb, ppu)
         # ROL命令
         if opcode == 0x2A:
             op.rol_acc(self, mb)
@@ -357,23 +377,34 @@ class CPU():
             op.rol_im16(self, mb, ppu)
         if opcode == 0x3E:
             op.rol_im16x(self, mb, ppu)
+        # ROR命令
+        if opcode == 0x6A:
+            op.ror_acc(self, mb)
+        if opcode == 0x66:
+            op.ror_im8(self, mb, ppu)
+        if opcode == 0x76:
+            op.ror_im8x(self, mb, ppu)
+        if opcode == 0x6E:
+            op.ror_im16(self, mb, ppu)
+        if opcode == 0x7E:
+            op.ror_im16x(self, mb, ppu)
         # SBC命令
         if opcode == 0xE9:
-            op.sbc_sim8(self, mb)
+            op.sbc_sim8(self, mb, ppu)
         if opcode == 0xE5:
-            op.sbc_im8(self, mb)
+            op.sbc_im8(self, mb, ppu)
         if opcode == 0xF5:
-            op.sbc_im8x(self, mb)
+            op.sbc_im8x(self, mb, ppu)
         if opcode == 0xED:
-            op.sbc_im16(self, mb)
+            op.sbc_im16(self, mb, ppu)
         if opcode == 0xFD:
-            op.sbc_im16x(self, mb)
+            op.sbc_im16x(self, mb, ppu)
         if opcode == 0xF9:
-            op.sbc_im16y(self, mb)
+            op.sbc_im16y(self, mb, ppu)
         if opcode == 0xE1:
-            op.sbc_iim8x(self, mb)
+            op.sbc_iim8x(self, mb, ppu)
         if opcode == 0xF1:
-            op.sbc_iim8y(self, mb)
+            op.sbc_iim8y(self, mb, ppu)
         # スタック命令
         # PHA命令
         if opcode == 0x48:
@@ -383,16 +414,16 @@ class CPU():
             op.php(self, mb, ppu)
         # PLA命令
         if opcode == 0x68:
-            op.pla(self, mb)
+            op.pla(self, mb, ppu)
         # PLP命令
         if opcode == 0x28:
-            op.plp(self, mb)
+            op.plp(self, mb, ppu)
         # ジャンプ命令
         # JMP命令
         if opcode == 0x4C:
-            op.jmp_im16(self, mb)
+            op.jmp_im16(self, mb, ppu)
         if opcode == 0x6C:
-            op.jmp_iim16(self, mb)
+            op.jmp_iim8(self, mb, ppu)
         # JSR命令
         if opcode == 0x20:
             op.jsr(self, mb, ppu)
@@ -405,28 +436,28 @@ class CPU():
         # 分岐命令
         # BCC命令
         if opcode == 0x90:
-            op.bcc(self, mb)
+            op.bcc(self, mb, ppu)
         # BCS命令
         if opcode == 0xB0:
-            op.bcs(self, mb)
+            op.bcs(self, mb, ppu)
         # BEQ命令
         if opcode == 0xF0:
-            op.beq(self, mb)
+            op.beq(self, mb, ppu)
         # BMI命令
         if opcode == 0x30:
-            op.bmi(self, mb)
+            op.bmi(self, mb, ppu)
         # BNE命令
         if opcode == 0xD0:
-            op.bne(self, mb)
+            op.bne(self, mb, ppu)
         # BPL命令
         if opcode == 0x10:
-            op.bpl(self, mb)
+            op.bpl(self, mb, ppu)
         # BVC命令
         if opcode == 0x50:
-            op.bvc(self, mb)
+            op.bvc(self, mb, ppu)
         # BVS命令
         if opcode == 0x70:
-            op.bvs(self, mb)
+            op.bvs(self, mb, ppu)
         # フラグ変更命令
         # CLC命令
         if opcode == 0x18:
@@ -456,6 +487,52 @@ class CPU():
         # NOP命令
         if opcode == 0xEA:
             op.nop(self, mb)
+        if opcode == 0x04:
+            op.undef_nop1(self, mb)
+        if opcode == 0x44:
+            op.undef_nop1(self, mb)
+        if opcode == 0x64:
+            op.undef_nop1(self, mb)
+        if opcode == 0x0C:
+            op.undef_nop2(self, mb)
+        if opcode == 0x14:
+            op.undef_nop1(self, mb)
+        if opcode == 0x34:
+            op.undef_nop1(self, mb)
+        if opcode == 0x54:
+            op.undef_nop1(self, mb)
+        if opcode == 0x74:
+            op.undef_nop1(self, mb)
+        if opcode == 0xD4:
+            op.undef_nop1(self, mb)
+        if opcode == 0xF4:
+            op.undef_nop1(self, mb)
+        if opcode == 0x1A:
+            op.nop(self, mb)
+        if opcode == 0x3A:
+            op.nop(self, mb)
+        if opcode == 0x5A:
+            op.nop(self, mb)
+        if opcode == 0x7A:
+            op.nop(self, mb)
+        if opcode == 0xDA:
+            op.nop(self, mb)
+        if opcode == 0xFA:
+            op.nop(self, mb)
+        if opcode == 0x80:
+            op.undef_nop1(self, mb)
+        if opcode == 0x1C:
+            op.undef_nop2(self, mb)
+        if opcode == 0x3C:
+            op.undef_nop2(self, mb)
+        if opcode == 0x5C:
+            op.undef_nop2(self, mb)
+        if opcode == 0x7C:
+            op.undef_nop2(self, mb)
+        if opcode == 0xDC:
+            op.undef_nop2(self, mb)
+        if opcode == 0xFC:
+            op.undef_nop2(self, mb)
 
 class MotherBoard:
     def __init__(self):
@@ -555,7 +632,7 @@ class MotherBoard:
         #character_rom_start = 0x0010 + nes_header[4] * 0x4000
         #character_rom_end   = character_rom_start + nes_header[5] * 0x2000
 
-    def mmu_read(self, addr):
+    def mmu_read(self, addr, ppu):
         if 0x0000 <= addr <= 0x07FF:
             return self.WRAM[addr - 0x0000]
         elif 0x0800 <= addr <= 0x0FFF:
@@ -698,6 +775,8 @@ class PPU():
 
         self.bitmap = Image.new('RGB', (256, 240), (0, 0, 0))
 
+        self.ppu_cycle = 0x00
+
     def write(self, addr, data):
         if 0x0000 <= addr <= 0x0FFF:
             self.PTABLE_H[addr - 0x0000] = data
@@ -819,18 +898,18 @@ def main():
     # ROMファイル読み込み
     mb.rom_read(f, ppu)
     # reset irq
-    cpu.reset(mb)
+    cpu.reset(mb, ppu)
 
     #  グラフィック表示用のスレッド
     #thread1 = threading.Thread(target = show_image, args = (ppu, mb, ))
     #thread1.start()
 
     for _ in range(0x100000):
-        opcode = cpu.fetch(mb)
+        opcode = cpu.fetch(mb, ppu)
 
         # デバッグ用
         #print(format(opcode, '#04x'))
-        cpu.debug(mb)
+        cpu.debug(mb, ppu)
 #
         if cpu.PC == 0xc66E:
         
@@ -848,9 +927,11 @@ def main():
         #mb.show_ppu_reg() <= 使わない
 
         cpu.execute(opcode, mb, ppu)
+        cpu.cycles += cpu.clk_table[opcode]
+        ppu.ppu_cycle += (cpu.clk_table[opcode] * 3)
         
-        if cpu.cycles > 341:
-            cpu.cycles -= 341
+        if ppu.ppu_cycle > 341:
+            ppu.ppu_cycle -= 341
             cpu.h_line += 1
             
             # v_vlank中のPPUC1bit7の値（0:無効、1:発生）に応じてNMI発生
