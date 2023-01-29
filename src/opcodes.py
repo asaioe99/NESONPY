@@ -12,7 +12,6 @@ def dec_uint8_tri(a, b, c):
 # NMI
 def nmi(cpu, mb, ppu):
     cpu.P["B"] = False
-    #cpu.PC += cpu.op_len[cpu.fetch(mb)]
     cpu.push(mb, (cpu.PC >> 8) & 0x00FF, ppu)
     cpu.push(mb, cpu.PC & 0x00FF, ppu)
     cpu.P["1"] = True # 不要だけど実機はこう
@@ -25,41 +24,49 @@ def nmi(cpu, mb, ppu):
     cpu.push(mb, data, ppu)
     cpu.P["1"] = False
     cpu.P["I"] = True
-    cpu.PC = mb.mmu_read(0xFFFA) | mb.mmu_read(0xFFFB) << 8
+    cpu.PC = mb.mmu_read(0xFFFA, ppu) | mb.mmu_read(0xFFFB, ppu) << 8
 
 # アドレッシングモード
 def sim8_ads(cpu, mb, ppu):
     return mb.mmu_read(cpu.PC + 1, ppu)
 
-def im8_ads(cpu, mb, ppu):
+def im8_ads(cpu, mb, ppu): # Zero Page
     return mb.mmu_read(cpu.PC + 1, ppu) & 0x00FF
 
-def im8x_ads(cpu, mb, ppu):
+def im8x_ads(cpu, mb, ppu): # Absolute, X
     return (mb.mmu_read(cpu.PC + 1, ppu) + cpu.X) & 0x00FF
 
-def im8y_ads(cpu, mb, ppu):
+def im8y_ads(cpu, mb, ppu): # Absolute, Y
     return (mb.mmu_read(cpu.PC + 1, ppu) + cpu.Y) & 0x00FF
 
-def im16_ads(cpu, mb, ppu):
+def im16_ads(cpu, mb, ppu): # Absolute
     return mb.mmu_read(cpu.PC + 1, ppu) | mb.mmu_read(cpu.PC + 2, ppu) << 8
 
-def im16x_ads(cpu, mb, ppu):
-    return ((mb.mmu_read(cpu.PC + 1, ppu) | mb.mmu_read(cpu.PC + 2, ppu) << 8) + cpu.X) % 0x1000
+def im16x_ads(cpu, mb, ppu): # Absolute, X
+    return ((mb.mmu_read(cpu.PC + 1, ppu) | mb.mmu_read(cpu.PC + 2, ppu) << 8) + cpu.X) % 0x10000
 
-def im16y_ads(cpu, mb, ppu):
-    return ((mb.mmu_read(cpu.PC + 1, ppu) | mb.mmu_read(cpu.PC + 2, ppu) << 8) + cpu.Y) % 0x1000
+def im16y_ads(cpu, mb, ppu):# Absolute, Y
+    return ((mb.mmu_read(cpu.PC + 1, ppu) | mb.mmu_read(cpu.PC + 2, ppu) << 8) + cpu.Y) % 0x10000
 
-def iim8x_ads(cpu, mb, ppu):
-    addr = (mb.mmu_read(cpu.PC + 1, ppu) | cpu.X) & 0x00FF
-    addr_l = mb.mmu_read(addr, ppu)
-    addr_h = mb.mmu_read(addr + 1, ppu)
+def iim8x_ads(cpu, mb, ppu): # (indirect, X)
+    addr = (mb.mmu_read(cpu.PC + 1, ppu) + cpu.X) & 0x00FF
+    if addr == 0xFF:
+        addr_l = mb.mmu_read(addr, ppu)
+        addr_h = mb.mmu_read(addr &0xFF00, ppu)
+    else:
+        addr_l = mb.mmu_read(addr, ppu)
+        addr_h = mb.mmu_read(addr + 1, ppu)
     return addr_l | addr_h << 8
 
-def iim8y_ads(cpu, mb, ppu):
+def iim8y_ads(cpu, mb, ppu): # (indirect), Y
     addr = mb.mmu_read(cpu.PC + 1, ppu) & 0x00FF
-    addr_l = mb.mmu_read(addr, ppu)
-    addr_h = mb.mmu_read(addr + 1, ppu)
-    return ((addr_l | addr_h << 8) + cpu.Y) % 0x1000
+    if addr == 0xFF:
+        addr_l = mb.mmu_read(addr, ppu)
+        addr_h = mb.mmu_read(addr &0xFF00, ppu)
+    else:
+        addr_l = mb.mmu_read(addr, ppu)
+        addr_h = mb.mmu_read(addr + 1, ppu)
+    return ((addr_l | addr_h << 8) + cpu.Y) & 0xFFFF
 
 # flag all clear
 def flag_clear(cpu): # don't care なのか不明
@@ -302,64 +309,64 @@ def adc_sim8(cpu, mb, ppu): # 0x69
 
 def adc_im8(cpu, mb, ppu): # 0x65
     addr = im8_ads(cpu, mb, ppu)
-    value = (cpu.A + mb.mmu_read(addr, ppu) + int(cpu.P['C'])) % 0x100
+    value = (cpu.A + mb.mmu_read(addr, ppu) + int(cpu.P['C']))
     cpu.P['V'] = (((cpu.A ^ value) & (mb.mmu_read(addr, ppu) ^ value)) & 0x80) > 0
     cpu.P['C'] = (value & 0x100) > 0
-    cpu.A = value
+    cpu.A = value & 0x00FF
     set_f_zn(cpu, cpu.A)
     cpu.PC += 2
 
 def adc_im8x(cpu, mb, ppu): # 0x75
     addr = im8x_ads(cpu, mb, ppu)
-    value = (cpu.A + mb.mmu_read(addr, ppu) + int(cpu.P['C'])) % 0x100
+    value = (cpu.A + mb.mmu_read(addr, ppu) + int(cpu.P['C']))
     cpu.P['V'] = (((cpu.A ^ value) & (mb.mmu_read(addr, ppu) ^ value)) & 0x80) > 0
     cpu.P['C'] = (value & 0x100) > 0
-    cpu.A = value
+    cpu.A = value & 0x00FF
     set_f_zn(cpu, cpu.A)
     cpu.PC += 2
 
 def adc_im16(cpu, mb, ppu): # 0x6D
     addr = im16_ads(cpu, mb, ppu)
-    value = (cpu.A + mb.mmu_read(addr, ppu) + int(cpu.P['C'])) % 0x100
+    value = (cpu.A + mb.mmu_read(addr, ppu) + int(cpu.P['C']))
     cpu.P['V'] = (((cpu.A ^ value) & (mb.mmu_read(addr, ppu) ^ value)) & 0x80) > 0
     cpu.P['C'] = (value & 0x100) > 0
-    cpu.A = value
+    cpu.A = value & 0x00FF
     set_f_zn(cpu, cpu.A)
     cpu.PC += 3
 
 def adc_im16x(cpu, mb, ppu): # 0x7D
     addr = im16x_ads(cpu, mb, ppu)
-    value = (cpu.A + mb.mmu_read(addr, ppu) + int(cpu.P['C'])) % 0x100
+    value = (cpu.A + mb.mmu_read(addr, ppu) + int(cpu.P['C']))
     cpu.P['V'] = (((cpu.A ^ value) & (mb.mmu_read(addr, ppu) ^ value)) & 0x80) > 0
     cpu.P['C'] = (value & 0x100) > 0
-    cpu.A = value
+    cpu.A = value & 0x00FF
     set_f_zn(cpu, cpu.A)
     cpu.PC += 3
 
 def adc_im16y(cpu, mb, ppu): # 0x79
     addr = im16y_ads(cpu, mb, ppu)
-    value = (cpu.A + mb.mmu_read(addr, ppu) + int(cpu.P['C'])) % 0x100
+    value = (cpu.A + mb.mmu_read(addr, ppu) + int(cpu.P['C']))
     cpu.P['V'] = (((cpu.A ^ value) & (mb.mmu_read(addr, ppu) ^ value)) & 0x80) > 0
     cpu.P['C'] = (value & 0x100) > 0
-    cpu.A = value
+    cpu.A = value & 0x00FF
     set_f_zn(cpu, cpu.A)
     cpu.PC += 3
 
 def adc_iim8x(cpu, mb, ppu): # 0x61
     addr = iim8x_ads(cpu, mb, ppu)
-    value = (cpu.A + mb.mmu_read(addr, ppu) + int(cpu.P['C'])) % 0x100
+    value = (cpu.A + mb.mmu_read(addr, ppu) + int(cpu.P['C']))
     cpu.P['V'] = (((cpu.A ^ value) & (mb.mmu_read(addr, ppu) ^ value)) & 0x80) > 0
     cpu.P['C'] = (value & 0x100) > 0
-    cpu.A = value
+    cpu.A = value & 0x00FF
     set_f_zn(cpu, cpu.A)
     cpu.PC += 2
 
 def adc_iim8y(cpu, mb, ppu): # 0x71
     addr = iim8y_ads(cpu, mb, ppu)
-    value = (cpu.A + mb.mmu_read(addr, ppu) + int(cpu.P['C'])) % 0x100
+    value = (cpu.A + mb.mmu_read(addr, ppu) + int(cpu.P['C']))
     cpu.P['V'] = (((cpu.A ^ value) & (mb.mmu_read(addr, ppu) ^ value)) & 0x80) > 0
     cpu.P['C'] = (value & 0x100) > 0
-    cpu.A = value
+    cpu.A = value & 0x00FF
     set_f_zn(cpu, cpu.A)
     cpu.PC += 2
 
@@ -525,7 +532,7 @@ def cmp_im16y(cpu, mb, ppu): # 0xD9
     cpu.PC += 3
 
 def cmp_iim8x(cpu, mb, ppu): # 0xC1
-    addr = iim8y_ads(cpu, mb, ppu)
+    addr = iim8x_ads(cpu, mb, ppu)
     data = mb.mmu_read(addr, ppu)
     diff = dec_uint8(cpu.A, data)
     set_f_zn(cpu, diff)
@@ -935,7 +942,7 @@ def ror_im16x(cpu, mb, ppu): # 0x7E
     set_f_zn(cpu, value)
     cpu.PC += 3
 
-# SBC命令 # 多分cフラグが間違い
+# SBC命令
 def sbc_sim8(cpu, mb, ppu): # 0xE9
     data = sim8_ads(cpu, mb, ppu)
     value = dec_uint8_tri(cpu.A, data, int(not cpu.P['C']))
@@ -991,7 +998,7 @@ def sbc_im16y(cpu, mb, ppu): # 0xF9
     value = dec_uint8_tri(cpu.A, data, int(not cpu.P['C']))
     cpu.P['V'] = (((cpu.A ^ value) & (((~data) & 0xFF) ^ value)) & 0x80) > 0
     cpu.P['C'] = not (cpu.A < (data + int(not cpu.P['C'])))
-    cpu.A = value
+    cpu.A = value & 0x00FF
     set_f_zn(cpu, cpu.A)
     cpu.PC += 3
 
@@ -1000,8 +1007,9 @@ def sbc_iim8x(cpu, mb, ppu): # 0xE1
     data = mb.mmu_read(addr, ppu)
     value = dec_uint8_tri(cpu.A, data, int(not cpu.P['C']))
     cpu.P['V'] = (((cpu.A ^ value) & (((~data) & 0xFF) ^ value)) & 0x80) > 0
-    cpu.P['C'] = not ((value & 0x100) > 0)
-    cpu.A = value
+    #cpu.P['C'] = not ((value & 0x100) > 0)
+    cpu.P['C'] = not (cpu.A < (data + int(not cpu.P['C'])))
+    cpu.A = value & 0x00FF
     set_f_zn(cpu, cpu.A)
     cpu.PC += 2
 
@@ -1010,7 +1018,8 @@ def sbc_iim8y(cpu, mb, ppu): # 0xF1
     data = mb.mmu_read(addr, ppu)
     value = dec_uint8_tri(cpu.A, data, int(not cpu.P['C']))
     cpu.P['V'] = (((cpu.A ^ value) & (((~data) & 0xFF) ^ value)) & 0x80) > 0
-    cpu.P['C'] = not ((value & 0x100) > 0)
+    #cpu.P['C'] = not ((value & 0x100) > 0)
+    cpu.P['C'] = not (cpu.A < (data + int(not cpu.P['C'])))
     cpu.A = value
     set_f_zn(cpu, cpu.A)
     cpu.PC += 2
@@ -1223,8 +1232,79 @@ def brk(cpu, mb, ppu): # 0x00
 def nop(cpu, mb): # 0xEA
     cpu.PC += 1
 
+# 非公式命令
+# NOP命令
 def undef_nop1(cpu, mb): # 0x04 44 64
     cpu.PC += 2
 
 def undef_nop2(cpu, mb): # 0x0C
     cpu.PC += 3
+# LAX
+def lax_iim8x(cpu, mb, ppu): # 0xA3
+    addr = iim8x_ads(cpu, mb, ppu)
+    cpu.A = mb.mmu_read(addr, ppu)
+    set_f_zn(cpu, cpu.A)
+    cpu.X = cpu.A
+    set_f_zn(cpu, cpu.X)
+    cpu.PC += 2
+
+def lax_im8(cpu, mb, ppu): # 0xA7
+    addr = im8_ads(cpu, mb, ppu)
+    cpu.A = mb.mmu_read(addr, ppu)
+    set_f_zn(cpu, cpu.A)
+    cpu.X = cpu.A
+    set_f_zn(cpu, cpu.X)
+    cpu.PC += 2
+
+def lax_im16(cpu, mb, ppu): # 0xAF
+    addr = im16_ads(cpu, mb, ppu)
+    cpu.A = mb.mmu_read(addr, ppu)
+    set_f_zn(cpu, cpu.A)
+    cpu.X = cpu.A
+    set_f_zn(cpu, cpu.X)
+    cpu.PC += 3
+
+def lax_iim8y(cpu, mb, ppu): # 0xB3
+    addr = iim8y_ads(cpu, mb, ppu)
+    cpu.A = mb.mmu_read(addr, ppu)
+    set_f_zn(cpu, cpu.A)
+    cpu.X = cpu.A
+    set_f_zn(cpu, cpu.X)
+    cpu.PC += 2
+
+def lax_im8y(cpu, mb, ppu): # 0xB7
+    addr = im8y_ads(cpu, mb, ppu)
+    cpu.A = mb.mmu_read(addr, ppu)
+    set_f_zn(cpu, cpu.A)
+    cpu.X = cpu.A
+    set_f_zn(cpu, cpu.X)
+    cpu.PC += 2
+
+def lax_im16y(cpu, mb, ppu): # 0xBF
+    addr = im16y_ads(cpu, mb, ppu)
+    cpu.A = mb.mmu_read(addr, ppu)
+    set_f_zn(cpu, cpu.A)
+    cpu.X = cpu.A
+    set_f_zn(cpu, cpu.X)
+    cpu.PC += 3
+
+# SAX命令
+def sax_iim8x(cpu, mb, ppu): # 0x83
+    addr = iim8x_ads(cpu, mb, ppu)
+    mb.mmu_write(addr, cpu.A & cpu.X, ppu)
+    cpu.PC += 2
+
+def sax_im8(cpu, mb, ppu): # 0x87
+    addr = im8_ads(cpu, mb, ppu)
+    mb.mmu_write(addr, cpu.A & cpu.X, ppu)
+    cpu.PC += 2
+
+def sax_im16(cpu, mb, ppu): # 0x8F
+    addr = im16_ads(cpu, mb, ppu)
+    mb.mmu_write(addr, cpu.A & cpu.X, ppu)
+    cpu.PC += 3
+
+def sax_im8x(cpu, mb, ppu): # 0x97
+    addr = im8x_ads(cpu, mb, ppu)
+    mb.mmu_write(addr, cpu.A & cpu.X, ppu)
+    cpu.PC += 2
